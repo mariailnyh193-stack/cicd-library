@@ -1,0 +1,28 @@
+stages: [validate, test, release]
+
+validate-yaml:
+  stage: validate
+  image: python:3.12-alpine
+  script:
+    - pip install --quiet yamllint
+    - yamllint -d relaxed templates/
+
+include:
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/go-build@$CI_COMMIT_SHA
+    inputs:
+      stage: test
+      go-version: "1.23"
+      binary-name: "self"
+      main-path: "."
+      job-prefix: self
+
+create-release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Releasing $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "Release $CI_COMMIT_TAG"
