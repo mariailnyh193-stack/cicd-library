@@ -1,0 +1,86 @@
+spec:
+  component: [name, version]
+  description: "Build, lint and test a Go project."
+  inputs:
+    stage:
+      description: "Stage for build/lint/test jobs"
+      default: build
+    go-version:
+      description: "Go image tag"
+      default: "1.23"
+    binary-name:
+      description: "Name of the output binary"
+      default: "app"
+    main-path:
+      description: "Path to main package (relative to repo root)"
+      default: "."
+    golangci-lint-version:
+      description: "golangci-lint image tag"
+      default: "v1.62.2"
+    go-flags:
+      description: "Extra go flags (e.g. -mod=vendor)"
+      default: ""
+    test-command:
+      description: "Command used to run tests"
+      default: "go test -race -covermode=atomic -coverprofile=coverage.out ./..."
+    tags:
+      description: "Runner tags"
+      type: array
+      default: []
+    job-prefix:
+      description: "Prefix for job names"
+      default: "go"
+
+---
+
+.go-build:base:
+  image: golang:$[[ inputs.go-version ]]
+  variables:
+    GOFLAGS: $[[ inputs.go-flags ]]
+    GOCACHE: "$CI_PROJECT_DIR/.cache/go-build"
+    GOPATH: "$CI_PROJECT_DIR/.cache/go"
+  cache:
+    key:
+      files:
+        - go.sum
+    paths:
+      - .cache/go-build/
+      - .cache/go/
+  before_script:
+    - go version
+    - go env GOPATH GOCACHE GOFLAGS
+
+$[[ inputs.job-prefix ]]-build:
+  stage: $[[ inputs.stage ]]
+  extends: .go-build:base
+  tags: $[[ inputs.tags ]]
+  script:
+    - go build -v -o $[[ inputs.binary-name ]] $[[ inputs.main-path ]]
+  artifacts:
+    name: "$[[ inputs.binary-name ]]-$CI_COMMIT_SHORT_SHA"
+    expire_in: 1 week
+    paths:
+      - $[[ inputs.binary-name ]]
+
+$[[ inputs.job-prefix ]]-lint:
+  stage: $[[ inputs.stage ]]
+  extends: .go-build:base
+  tags: $[[ inputs.tags ]]
+  image:
+    name: golangci/golangci-lint:$[[ inputs.golangci-lint-version ]]
+    entrypoint: [""]
+  script:
+    - golangci-lint run --timeout=5m ./...
+
+$[[ inputs.job-prefix ]]-test:
+  stage: $[[ inputs.stage ]]
+  extends: .go-build:base
+  tags: $[[ inputs.tags ]]
+  script:
+    - $[[ inputs.test-command ]]
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - coverage.out
