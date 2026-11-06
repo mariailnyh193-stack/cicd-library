@@ -1,5 +1,4 @@
 spec:
-  component: [name, version]
   description: "Build, lint and test a Go project."
   inputs:
     stage:
@@ -70,7 +69,12 @@ $[[ inputs.job-prefix ]]-lint:
     name: golangci/golangci-lint:$[[ inputs.golangci-lint-version ]]
     entrypoint: [""]
   script:
-    - golangci-lint run --timeout=5m ./...
+    - golangci-lint run --timeout=5m --out-format code-climate:gl-code-quality-report.json,line-number ./...
+  artifacts:
+    when: always
+    expire_in: 1 week
+    reports:
+      codequality: gl-code-quality-report.json
 
 $[[ inputs.job-prefix ]]-test:
   stage: $[[ inputs.stage ]]
